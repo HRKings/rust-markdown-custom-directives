@@ -1,0 +1,30 @@
+[profile.default]
+# Fail fast is off — run all tests even after a failure so we get a full report.
+fail-fast = false
+# Treat anything above 30s as slow (nextest prints a SLOW marker); kill after 2m.
+slow-timeout = { period = "30s", terminate-after = 4 }
+# Show stdout/stderr for failing tests; hide for passing ones.
+failure-output = "immediate-final"
+success-output = "never"
+# Retry flaky tests a couple of times before declaring failure.
+retries = 0
+
+[profile.ci]
+# CI profile: keep output compact, never retry silently, emit JUnit XML.
+fail-fast = false
+failure-output = "immediate-final"
+success-output = "never"
+retries = 0
+slow-timeout = { period = "60s", terminate-after = 3 }
+
+[profile.ci.junit]
+path = "junit.xml"
+
+[[profile.default.overrides]]
+# Lua runtime tests spin up a fresh `mlua::Lua` per test; keep them serial
+# inside each binary to avoid thrashing the vendored Lua build under load.
+filter = "package(mdx_integration_tests)"
+test-group = "lua"
+
+[test-groups]
+lua = { max-threads = 4 }
