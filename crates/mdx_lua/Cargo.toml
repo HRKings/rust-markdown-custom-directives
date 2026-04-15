@@ -1,0 +1,25 @@
+[package]
+name = "mdx_lua"
+version = { workspace = true }
+edition = { workspace = true }
+rust-version = { workspace = true }
+license = { workspace = true }
+repository = { workspace = true }
+authors = { workspace = true }
+description = "Lua runtime implementation of the mdx_ext DirectiveRuntime trait."
+
+[features]
+default = ["lua54"]
+lua54 = ["mlua/lua54"]
+luajit = ["mlua/luajit"]
+
+[dependencies]
+mdx_ext = { workspace = true }
+mlua = { workspace = true, features = ["vendored", "serialize", "send", "macros"] }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+insta = { workspace = true }
