@@ -1,8 +1,13 @@
 # mdx — Markdown with Runtime-Loaded Directives
 
-A Rust library for parsing markdown with first-class **block directives**, **inline directives**, **wiki links**, and **namespaced semantic links**. Directive handlers are Lua scripts loaded at runtime — no recompilation needed to add or change behavior.
+A Rust library for parsing markdown with first-class **block directives**,
+**inline directives**, **wiki links**, and **namespaced semantic links**.
+Behavior can be extended at runtime through Lua handlers, so you can add
+directive logic or semantic-link rendering without recompiling the host app.
 
-Built on top of [comrak](https://crates.io/crates/comrak) (CommonMark + GFM), so standard markdown works out of the box. Custom syntax is layered on top without modifying the underlying parser.
+Built on top of [comrak](https://crates.io/crates/comrak) (CommonMark + GFM),
+so standard markdown keeps working as-is. The extra syntax is layered on top
+without forking or replacing the underlying markdown parser.
 
 ## Custom Syntax
 
@@ -16,10 +21,10 @@ strength: 12
 :::
 ```
 
-The body between `:::name` and `:::` is parsed as YAML attributes and passed to the handler.
+The body between `:::name` and `:::` is decoded in one of two ways:
 
-If the body is not a YAML mapping, it is preserved as raw text instead. That
-lets Lua handlers implement custom mini-languages or free-form block parsing.
+- YAML mapping bodies become `inv.body` as a Lua table
+- Non-mapping bodies stay as raw text in `inv.body`
 
 ```markdown
 :::myblock
@@ -64,29 +69,50 @@ Namespaced links are resolved by `register_link_resolver` handlers, allowing dom
 
 ## Quick Start
 
+Use `mdx_ext` when you only need parsing / rendering infrastructure, and use
+`mdx_lua` when you want runtime-loaded handlers.
+
 ```rust
+use std::error::Error;
+
 use mdx_ext::{MarkdownEngine, ResolutionMode, RuntimeContext, ScriptSource};
 use mdx_lua::LuaRuntime;
 
-let mut engine = MarkdownEngine::builder()
-    .with_runtime(Box::new(LuaRuntime::new()?))
-    .with_resolution_mode(ResolutionMode::Strict)
-    .build()?;
+fn main() -> Result<(), Box<dyn Error>> {
+    let source = r#"
+---
+units:
+  league_km: 4.8
+---
 
-engine.load_script(ScriptSource::File("handlers.lua".into()))?;
+The fortress is {{convert value=3 from="league" to="km"}} away.
+"#;
 
-let doc = engine.parse(&source);
-let ctx = RuntimeContext {
-    document_metadata: doc.frontmatter.as_ref().map(|fm| fm.value.clone()),
-    ..RuntimeContext::default()
-};
-let resolved = engine.resolve(doc, &ctx)?;
-let html = engine.render_html(&resolved);
+    let mut engine = MarkdownEngine::builder()
+        .with_runtime(Box::new(LuaRuntime::new()?))
+        .with_resolution_mode(ResolutionMode::Strict)
+        .build()?;
+
+    engine.load_script(ScriptSource::File("handlers.lua".into()))?;
+
+    let doc = engine.parse(source);
+    let ctx = RuntimeContext {
+        document_metadata: doc.frontmatter.as_ref().map(|fm| fm.value.clone()),
+        ..RuntimeContext::default()
+    };
+    let resolved = engine.resolve(doc, &ctx)?;
+    let html = engine.render_html(&resolved);
+
+    println!("{html}");
+    Ok(())
+}
 ```
 
 ## Writing Handlers
 
-Handlers are plain Lua scripts that call `mdx.register_directive` or `mdx.register_link_resolver`. They receive the directive invocation and a context table, and return a structured output.
+Handlers are plain Lua scripts that call `mdx.register_directive` or
+`mdx.register_link_resolver`. They receive the directive or link invocation
+plus a context table and return a structured output.
 
 ### Directive handler
 
@@ -100,6 +126,12 @@ mdx.register_directive("convert", function(inv, ctx)
     }
 end)
 ```
+
+For block directives, `inv.body` is shape-dependent:
+
+- Lua table for YAML-mapping bodies such as `name: Captain Lyra`
+- string for raw custom bodies such as a DSL or free-form text
+- `nil` for an empty block
 
 ### Link resolver
 
@@ -136,11 +168,14 @@ A plain string return is shorthand for `{ type = "text", value = s }`.
 
 ## Examples
 
-Three runnable examples live in the [`examples/`](examples/) directory, each with a Lua handler, input markdown, and a Rust binary.
+Three runnable end-to-end examples live in [`examples/`](examples/). Each one
+includes input markdown, a Lua handler, and a small Rust program that loads the
+handler dynamically and renders the result.
 
 ### Unit conversion (`examples/convert`)
 
-An inline directive that converts leagues to kilometers using a factor defined in YAML frontmatter.
+Shows **inline directive resolution**. The `convert` directive turns leagues
+into kilometers using a factor defined in frontmatter.
 
 ```
 cargo run -p mdx_lua --example convert
@@ -164,7 +199,9 @@ The fortress is {{convert value=3 from="league" to="km"}} away.
 
 ### NPC link chips (`examples/npc_link`)
 
-A namespaced link resolver that turns `[[npc:captain-lyra]]` into a styled HTML chip with the NPC's name, role, and faction, all sourced from frontmatter.
+Shows **semantic namespaced link resolution**. `[[npc:captain-lyra]]` is kept
+as a namespaced link in the AST, then resolved into a richer HTML chip sourced
+from frontmatter.
 
 ```
 cargo --config build.rustc-wrapper='""' run -p mdx_lua --example npc_link
@@ -172,7 +209,9 @@ cargo --config build.rustc-wrapper='""' run -p mdx_lua --example npc_link
 
 ### Stat block (`examples/statblock`)
 
-A block directive that renders a character stat block as structured HTML from YAML body attributes.
+Shows **block directive resolution**. `:::statblock ... :::` is parsed as a
+block directive node, its YAML body is exposed to Lua as structured attributes,
+and the handler renders rich HTML.
 
 ```
 cargo --config build.rustc-wrapper='""' run -p mdx_lua --example statblock
@@ -197,7 +236,9 @@ There is also a minimal parse-only example in `mdx_ext`:
 cargo --config build.rustc-wrapper='""' run -p mdx_ext --example render -- path/to/file.md
 ```
 
-This renders HTML with `Passthrough` mode (no runtime), so directives appear as HTML comments.
+This renders HTML with `Passthrough` mode and no runtime, so directives are
+preserved rather than executed. That is useful for parser/tooling workflows,
+but it is not the example to use when you want Lua-backed resolution.
 
 ## Safety and Limits
 
