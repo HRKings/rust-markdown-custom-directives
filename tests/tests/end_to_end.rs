@@ -1,5 +1,7 @@
 //! End-to-end exercises of the full pipeline: parse → load Lua → resolve → render.
 
+use std::path::PathBuf;
+
 use mdx_ext::{ResolutionMode, RuntimeContext, ScriptSource};
 use mdx_integration_tests::engine;
 
@@ -99,4 +101,35 @@ fn unload_script_removes_handler() {
     assert_eq!(eng.list_handlers().len(), 1);
     eng.unload_script(id).unwrap();
     assert_eq!(eng.list_handlers().len(), 0);
+}
+
+#[test]
+fn file_loaded_lua_script_converts_using_frontmatter() {
+    let mut eng = engine(ResolutionMode::Strict);
+    eng.load_script(ScriptSource::File(
+        convert_example_dir().join("convert.lua"),
+    ))
+    .unwrap();
+
+    let source = std::fs::read_to_string(convert_example_dir().join("input.md")).unwrap();
+    let doc = eng.parse(&source);
+    let ctx = RuntimeContext {
+        document_metadata: doc.frontmatter.as_ref().map(|fm| fm.value.clone()),
+        ..RuntimeContext::default()
+    };
+
+    let resolved = eng.resolve(doc, &ctx).unwrap();
+    let text = eng.render_text(&resolved);
+    assert!(
+        text.contains("14.40 km"),
+        "expected converted output in rendered text: {text}"
+    );
+    assert_eq!(text, "The fortress is 14.40 km away.");
+}
+
+fn convert_example_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("examples")
+        .join("convert")
 }
