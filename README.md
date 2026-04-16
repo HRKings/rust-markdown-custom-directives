@@ -18,6 +18,23 @@ strength: 12
 
 The body between `:::name` and `:::` is parsed as YAML attributes and passed to the handler.
 
+If the body is not a YAML mapping, it is preserved as raw text instead. That
+lets Lua handlers implement custom mini-languages or free-form block parsing.
+
+```markdown
+:::myblock
+alpha -> beta
+beta -> gamma
+gamma -> delta
+:::
+```
+
+In Lua, `inv.body` will be:
+
+- a table for YAML-like key/value bodies
+- a string for raw custom text
+- `nil` for an empty block
+
 ### Inline directives
 
 ```markdown
