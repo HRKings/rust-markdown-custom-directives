@@ -208,12 +208,16 @@ impl DirectiveRuntime for LuaRuntime {
         let func: Function = inner
             .lua
             .registry_value(&entry.key)
-            .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            .map_err(|e| {
+                RuntimeError::Execution(format!(
+                    "handler '{handler}': failed to retrieve function: {e}"
+                ))
+            })?;
         let inv_table = convert::invocation_to_lua(&inner.lua, &invocation)?;
         let ctx_table = build_context_table(&inner.lua, ctx)?;
         let result: LuaValue = func
             .call((inv_table, ctx_table))
-            .map_err(|e| RuntimeError::Execution(e.to_string()))?;
+            .map_err(|e| RuntimeError::Execution(format!("handler '{handler}': {e}")))?;
         convert::lua_to_output(&inner.lua, result)
     }
 

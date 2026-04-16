@@ -1,0 +1,9 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 42
+expression: "render_html(\"links_images.md\")"
+---
+<p><a href="https://example.com">A link</a> and <a href="https://example.com" title="Example">titled</a>.</p>
+<p><img src="image.png" alt="Alt text" /></p>
+<p><img src="photo.jpg" alt="Titled image" title="A photo" /></p>
+<p>Auto-link: <a href="https://example.com/auto">https://example.com/auto</a></p>

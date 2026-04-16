@@ -12,9 +12,15 @@
 //!
 //! The preprocessor does not attempt to understand markdown structure itself —
 //! it is a line- and byte-level scanner. Inline scanning is skipped inside
-//! triple-backtick / tilde fenced code blocks and indented code blocks, since
-//! those are the only places `comrak` would otherwise emit custom syntax as
-//! verbatim text.
+//! triple-backtick / tilde fenced code blocks, since those are the main places
+//! `comrak` would otherwise emit custom syntax as verbatim text.
+//!
+//! **Known limitation:** indented code blocks (4-space or tab-indented lines)
+//! are NOT exempted from inline scanning. The preprocessor has no structural
+//! awareness and cannot reliably distinguish indented code from list
+//! continuation paragraphs. In practice this is low-risk: fenced code blocks
+//! are the modern standard, and any leaked placeholder sentinels use Private
+//! Use Area codepoints (U+E000–U+E001) that are visually identifiable.
 
 use crate::ast::AttributeMap;
 use crate::diagnostics::{codes, Diagnostic, Severity};

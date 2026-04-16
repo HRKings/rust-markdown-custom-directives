@@ -1,0 +1,13 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 27
+expression: "render_html(\"code.md\")"
+---
+<p>Inline <code>code span</code> here.</p>
+<pre><code class="language-rust">fn main() {
+    println!("Hello, world!");
+}
+</code></pre>
+<pre><code class="language-python">def greet():
+    print("hi")
+</code></pre>

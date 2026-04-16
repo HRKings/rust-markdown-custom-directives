@@ -1,0 +1,8 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 22
+expression: "render_html(\"emphasis.md\")"
+---
+<p>This is <em>italic</em> text and <strong>bold</strong> text.</p>
+<p>Here is <em><strong>bold italic</strong></em> together.</p>
+<p>Some <em>strikethrough</em> text too.</p>

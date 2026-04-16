@@ -1,0 +1,11 @@
+---
+source: tests/tests/snapshot_directives.rs
+assertion_line: 24
+expression: "debug_parse(\"See [[Home Page|Home]].\")"
+---
+(document
+  (paragraph Span { start: 0, end: 16 }
+    (text "See " Span { start: 0, end: 16 })
+    (wiki-link target="Home Page" Span { start: 4, end: 22 }
+      (text "Home" Span { start: 4, end: 22 }))
+    (text "." Span { start: 0, end: 16 })))

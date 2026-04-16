@@ -1,15 +1,7 @@
 //! End-to-end exercises of the full pipeline: parse → load Lua → resolve → render.
 
-use mdx_ext::{MarkdownEngine, ResolutionMode, RuntimeContext, ScriptSource};
-use mdx_lua::LuaRuntime;
-
-fn engine(mode: ResolutionMode) -> MarkdownEngine {
-    MarkdownEngine::builder()
-        .with_runtime(Box::new(LuaRuntime::new().unwrap()))
-        .with_resolution_mode(mode)
-        .build()
-        .unwrap()
-}
+use mdx_ext::{ResolutionMode, RuntimeContext, ScriptSource};
+use mdx_integration_tests::engine;
 
 #[test]
 fn plain_markdown_renders() {

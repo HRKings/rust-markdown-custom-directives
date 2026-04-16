@@ -1,0 +1,7 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 52
+expression: "render_html(\"frontmatter.md\")"
+---
+<h1>Content After Frontmatter</h1>
+<p>Body text here.</p>

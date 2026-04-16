@@ -1,0 +1,11 @@
+---
+source: tests/tests/snapshot_directives.rs
+assertion_line: 29
+expression: "debug_parse(\"Link to [[wiki:Topic]].\")"
+---
+(document
+  (paragraph Span { start: 0, end: 20 }
+    (text "Link to " Span { start: 0, end: 20 })
+    (ns-link "wiki":"Topic" Span { start: 8, end: 22 }
+      (text "Topic" Span { start: 8, end: 22 }))
+    (text "." Span { start: 0, end: 20 })))

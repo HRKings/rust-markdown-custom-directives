@@ -1,0 +1,15 @@
+---
+source: tests/tests/snapshot_directives.rs
+assertion_line: 37
+expression: eng.render_debug(&doc)
+---
+(document
+  (paragraph Span { start: 0, end: 20 }
+    (text ":::unterminated" Span { start: 0, end: 15 })
+    (soft-break Span { start: 15, end: 16 })
+    (text "body" Span { start: 16, end: 20 }))
+  (paragraph Span { start: 22, end: 35 }
+    (text "{{}} and [[]]" Span { start: 22, end: 35 }))
+  (diagnostics
+    (Warning MDX101 "unterminated block directive")
+    (Warning MDX103 "empty wiki link")))

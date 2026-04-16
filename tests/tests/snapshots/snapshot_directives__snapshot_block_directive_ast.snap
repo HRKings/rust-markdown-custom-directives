@@ -1,0 +1,7 @@
+---
+source: tests/tests/snapshot_directives.rs
+assertion_line: 19
+expression: "debug_parse(\":::note\\ntitle: Hello\\n:::\\n\")"
+---
+(document
+  (directive name="note" attrs={} body=Attributes(AttributeMap({"title": String("Hello")})) Span { start: 0, end: 25 }))

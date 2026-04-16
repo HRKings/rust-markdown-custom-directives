@@ -1,0 +1,10 @@
+---
+source: tests/tests/snapshot_directives.rs
+assertion_line: 14
+expression: "debug_parse(r#\"text {{name key=\"val\"}} more\"#)"
+---
+(document
+  (paragraph Span { start: 0, end: 21 }
+    (text "text " Span { start: 0, end: 21 })
+    (inline-directive name="name" attrs={"key":"val"} raw="{{name key=\"val\"}}" Span { start: 5, end: 23 })
+    (text " more" Span { start: 0, end: 21 })))

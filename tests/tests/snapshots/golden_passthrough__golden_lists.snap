@@ -1,0 +1,25 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 32
+expression: "render_html(\"lists.md\")"
+---
+<ul>
+<li>Item one</li>
+<li>Item two</li>
+<li>Item three</li>
+</ul>
+<ol>
+<li>First</li>
+<li>Second</li>
+<li>Third</li>
+</ol>
+<ul>
+<li>
+<p>Nested top</p>
+<ul>
+<li>Nested child</li>
+<li>Another child</li>
+</ul>
+</li>
+<li>Back to top</li>
+</ul>

@@ -1,0 +1,18 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 37
+expression: "render_html(\"blockquotes.md\")"
+---
+<blockquote>
+<p>This is a blockquote.</p>
+</blockquote>
+<blockquote>
+<p>Multi-line
+blockquote here.</p>
+</blockquote>
+<blockquote>
+<p>Nested</p>
+<blockquote>
+<p>Inner quote</p>
+</blockquote>
+</blockquote>

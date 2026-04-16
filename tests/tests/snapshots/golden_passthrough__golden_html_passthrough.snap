@@ -1,0 +1,10 @@
+---
+source: tests/tests/golden_passthrough.rs
+assertion_line: 47
+expression: "render_html(\"html_passthrough.md\")"
+---
+<p>Before HTML.</p>
+<div class="raw">
+  <p>Raw HTML block</p>
+</div>
+<p>After HTML with <span>inline HTML</span> too.</p>
