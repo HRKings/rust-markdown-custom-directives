@@ -152,6 +152,37 @@ fn file_loaded_lua_script_resolves_namespaced_npc_link() {
     assert!(html.contains("npc-chip"), "{html}");
 }
 
+#[test]
+fn file_loaded_lua_script_resolves_block_statblock() {
+    let mut eng = engine(ResolutionMode::Strict);
+    eng.load_script(ScriptSource::File(
+        statblock_example_dir().join("statblock.lua"),
+    ))
+    .unwrap();
+
+    let source = std::fs::read_to_string(statblock_example_dir().join("input.md")).unwrap();
+    let doc = eng.parse(&source);
+    assert!(
+        has_named_directive(&doc, "statblock"),
+        "expected parsed document to contain a block directive named statblock"
+    );
+
+    let ctx = RuntimeContext {
+        document_metadata: doc.frontmatter.as_ref().map(|fm| fm.value.clone()),
+        ..RuntimeContext::default()
+    };
+
+    let resolved = eng.resolve(doc, &ctx).unwrap();
+    let html = eng.render_html(&resolved);
+    assert!(html.contains("Captain Lyra"), "{html}");
+    assert!(html.contains("Harbor Master"), "{html}");
+    assert!(html.contains("Azure Fleet"), "{html}");
+    assert!(html.contains("STR"), "{html}");
+    assert!(html.contains("AGI"), "{html}");
+    assert!(html.contains("WIL"), "{html}");
+    assert!(html.contains("statblock"), "{html}");
+}
+
 fn convert_example_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
@@ -164,6 +195,13 @@ fn npc_link_example_dir() -> PathBuf {
         .join("..")
         .join("examples")
         .join("npc_link")
+}
+
+fn statblock_example_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("examples")
+        .join("statblock")
 }
 
 fn has_npc_namespaced_link(doc: &Document) -> bool {
@@ -187,6 +225,36 @@ fn node_has_npc_namespaced_link(node: &Node) -> bool {
             }
             _ => false,
         },
+        _ => false,
+    }
+}
+
+fn has_named_directive(doc: &Document, name: &str) -> bool {
+    doc.children
+        .iter()
+        .any(|node| node_has_named_directive(node, name))
+}
+
+fn node_has_named_directive(node: &Node, name: &str) -> bool {
+    match node {
+        Node::Paragraph { children, .. }
+        | Node::Heading { children, .. }
+        | Node::Emphasis { children, .. }
+        | Node::Strong { children, .. }
+        | Node::BlockQuote { children, .. }
+        | Node::ListItem { children, .. }
+        | Node::Component { children, .. } => children
+            .iter()
+            .any(|child| node_has_named_directive(child, name)),
+        Node::List { items, .. } => items
+            .iter()
+            .any(|item| node_has_named_directive(item, name)),
+        Node::Directive(d) => {
+            d.name == name
+                || d.children
+                    .iter()
+                    .any(|child| node_has_named_directive(child, name))
+        }
         _ => false,
     }
 }
