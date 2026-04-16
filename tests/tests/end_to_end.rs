@@ -2,7 +2,7 @@
 
 use std::path::PathBuf;
 
-use mdx_ext::{ResolutionMode, RuntimeContext, ScriptSource};
+use mdx_ext::{Document, LinkKind, Node, ResolutionMode, RuntimeContext, ScriptSource};
 use mdx_integration_tests::engine;
 
 #[test]
@@ -127,9 +127,66 @@ fn file_loaded_lua_script_converts_using_frontmatter() {
     assert_eq!(text, "The fortress is 14.40 km away.");
 }
 
+#[test]
+fn file_loaded_lua_script_resolves_namespaced_npc_link() {
+    let mut eng = engine(ResolutionMode::Strict);
+    eng.load_script(ScriptSource::File(npc_link_example_dir().join("npc.lua")))
+        .unwrap();
+
+    let source = std::fs::read_to_string(npc_link_example_dir().join("input.md")).unwrap();
+    let doc = eng.parse(&source);
+    assert!(
+        has_npc_namespaced_link(&doc),
+        "expected parsed document to contain a namespaced npc link"
+    );
+
+    let ctx = RuntimeContext {
+        document_metadata: doc.frontmatter.as_ref().map(|fm| fm.value.clone()),
+        ..RuntimeContext::default()
+    };
+
+    let resolved = eng.resolve(doc, &ctx).unwrap();
+    let html = eng.render_html(&resolved);
+    assert!(html.contains("Captain Lyra"), "{html}");
+    assert!(html.contains("/codex/npcs/captain-lyra"), "{html}");
+    assert!(html.contains("npc-chip"), "{html}");
+}
+
 fn convert_example_dir() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("..")
         .join("examples")
         .join("convert")
+}
+
+fn npc_link_example_dir() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("..")
+        .join("examples")
+        .join("npc_link")
+}
+
+fn has_npc_namespaced_link(doc: &Document) -> bool {
+    doc.children.iter().any(node_has_npc_namespaced_link)
+}
+
+fn node_has_npc_namespaced_link(node: &Node) -> bool {
+    match node {
+        Node::Paragraph { children, .. }
+        | Node::Heading { children, .. }
+        | Node::Emphasis { children, .. }
+        | Node::Strong { children, .. }
+        | Node::BlockQuote { children, .. }
+        | Node::ListItem { children, .. }
+        | Node::Component { children, .. } => children.iter().any(node_has_npc_namespaced_link),
+        Node::List { items, .. } => items.iter().any(node_has_npc_namespaced_link),
+        Node::Directive(d) => d.children.iter().any(node_has_npc_namespaced_link),
+        Node::Link(link) => match &link.kind {
+            LinkKind::NamespacedLink { namespace, target } => {
+                namespace == "npc" && target == "captain-lyra"
+            }
+            _ => false,
+        },
+        _ => false,
+    }
 }
