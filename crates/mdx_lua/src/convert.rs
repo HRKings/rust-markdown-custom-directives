@@ -1,7 +1,6 @@
-//! Conversions between `serde_json::Value`, `mlua::Value`, and
-//! `mdx_ext::DirectiveOutput`.
+//! Conversions between `serde_json::Value`, `mlua::Value`, and runtime payloads.
 
-use mdx_ext::{AttributeMap, DirectiveInvocation, DirectiveOutput, RuntimeError};
+use mdx_ext::{AttributeMap, DirectiveInvocation, DirectiveOutput, LinkInvocation, RuntimeError};
 use mlua::{Lua, LuaSerdeExt, Table, Value as LuaValue};
 use serde_json::Value as JsonValue;
 
@@ -49,6 +48,20 @@ pub fn invocation_to_lua(lua: &Lua, inv: &DirectiveInvocation) -> Result<Table, 
     t.set("children_text", inv.children_text.as_str())
         .map_err(lua_err)?;
     // Span.
+    let span = lua.create_table().map_err(lua_err)?;
+    span.set("start", inv.span.start).map_err(lua_err)?;
+    span.set("end_", inv.span.end).map_err(lua_err)?;
+    t.set("span", span).map_err(lua_err)?;
+    Ok(t)
+}
+
+/// Build the Lua table passed to a namespaced link resolver.
+pub fn link_invocation_to_lua(lua: &Lua, inv: &LinkInvocation) -> Result<Table, RuntimeError> {
+    let t = lua.create_table().map_err(lua_err)?;
+    t.set("namespace", inv.namespace.as_str())
+        .map_err(lua_err)?;
+    t.set("target", inv.target.as_str()).map_err(lua_err)?;
+    t.set("text", inv.text.as_str()).map_err(lua_err)?;
     let span = lua.create_table().map_err(lua_err)?;
     span.set("start", inv.span.start).map_err(lua_err)?;
     span.set("end_", inv.span.end).map_err(lua_err)?;

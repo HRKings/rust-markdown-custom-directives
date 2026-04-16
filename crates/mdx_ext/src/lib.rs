@@ -32,6 +32,6 @@ pub use engine::{MarkdownEngine, MarkdownEngineBuilder};
 pub use error::Error;
 pub use runtime::{
     ContentResolver, DirectiveCache, DirectiveInvocation, DirectiveOutput, DirectiveRuntime,
-    NullRuntime, RuntimeContext, RuntimeError, ScriptId, ScriptSource,
+    LinkInvocation, NullRuntime, RuntimeContext, RuntimeError, ScriptId, ScriptSource,
 };
 pub use span::Span;

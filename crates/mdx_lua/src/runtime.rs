@@ -3,9 +3,10 @@
 //! Design notes:
 //! * The Lua interpreter is not `Sync`, so the whole runtime lives behind a
 //!   `Mutex`. `DirectiveRuntime` is declared `Send` only, matching this.
-//! * Scripts register handlers via `mdx.register_directive(name, fn)`. Each
-//!   registration records which `ScriptId` owns it so that unload can reverse
-//!   only that script's registrations.
+//! * Scripts register handlers via `mdx.register_directive(name, fn)` and
+//!   namespaced link resolvers via `mdx.register_link_resolver(namespace, fn)`.
+//!   Each registration records which `ScriptId` owns it so that unload can
+//!   reverse only that script's registrations.
 //! * Handler functions are stored in the Lua registry (`RegistryKey`) rather
 //!   than keyed by name — this keeps them anchored even if the script table
 //!   goes out of scope.
@@ -19,8 +20,8 @@ use std::sync::Mutex;
 
 use mdx_ext::runtime::HandlerDescriptor;
 use mdx_ext::{
-    DirectiveInvocation, DirectiveOutput, DirectiveRuntime, RuntimeContext, RuntimeError, ScriptId,
-    ScriptSource,
+    DirectiveInvocation, DirectiveOutput, DirectiveRuntime, LinkInvocation, RuntimeContext,
+    RuntimeError, ScriptId, ScriptSource,
 };
 use mlua::{Function, Lua, LuaSerdeExt, RegistryKey, Table, Value as LuaValue};
 
@@ -33,12 +34,14 @@ struct HandlerEntry {
 }
 
 struct ScriptRecord {
-    handler_names: Vec<String>,
+    directive_handler_names: Vec<String>,
+    link_handler_names: Vec<String>,
 }
 
 struct Inner {
     lua: Lua,
-    handlers: HashMap<String, HandlerEntry>,
+    directive_handlers: HashMap<String, HandlerEntry>,
+    link_handlers: HashMap<String, HandlerEntry>,
     scripts: HashMap<ScriptId, ScriptRecord>,
     next_script_id: u64,
 }
@@ -56,7 +59,8 @@ impl LuaRuntime {
         Ok(Self {
             inner: Mutex::new(Inner {
                 lua,
-                handlers: HashMap::new(),
+                directive_handlers: HashMap::new(),
+                link_handlers: HashMap::new(),
                 scripts: HashMap::new(),
                 next_script_id: 1,
             }),
@@ -77,53 +81,47 @@ fn lua_err(e: mlua::Error) -> RuntimeError {
 
 fn install_mdx_table(lua: &Lua) -> Result<(), RuntimeError> {
     let table = lua.create_table().map_err(lua_err)?;
-    let register = lua
+    let register_directive = lua
         .create_function(
             |lua, (name, func): (String, Function)| -> mlua::Result<()> {
-                // Stash the function in the registry and append to the pending list
-                // held on the Lua side in a hidden table.
                 let key = lua.create_registry_value(func)?;
-                let staging: Table = lua.named_registry_value("__mdx_pending").or_else(|_| {
-                    let t = lua.create_table()?;
-                    lua.set_named_registry_value("__mdx_pending", t.clone())?;
-                    Ok::<_, mlua::Error>(t)
-                })?;
-                let next = staging.raw_len() + 1;
-                // We can't store a RegistryKey in Lua, so we serialize a small marker
-                // and re-resolve on the Rust side via a parallel Rust Vec. Use a
-                // separate table keyed by insertion order containing the name only,
-                // then drain the RegistryKey via a thread-local channel.
-                staging.set(next, name.clone())?;
-                // Publish the RegistryKey through a second registry slot, keyed by
-                // sequence number.
-                let keys_table_name = "__mdx_pending_keys";
-                let keys_table: Table =
-                    lua.named_registry_value(keys_table_name).or_else(|_| {
-                        let t = lua.create_table()?;
-                        lua.set_named_registry_value(keys_table_name, t.clone())?;
-                        Ok::<_, mlua::Error>(t)
-                    })?;
-                // Store the raw registry key index as a userdata-free integer by
-                // round-tripping through a boxed integer. `create_registry_value`
-                // gives us a RegistryKey that owns the slot; we need to hand it to
-                // Rust after load, so we cache its numeric index via `into_i32`-less
-                // means: store the key inside a Rust-only thread_local.
-                PENDING_KEYS.with(|cell| {
-                    let mut v = cell.borrow_mut();
-                    v.push((name, key));
+                PENDING_REGISTRATIONS.with(|cell| {
+                    cell.borrow_mut()
+                        .push(PendingRegistration::Directive { name, key });
                 });
-                let _ = keys_table; // silence unused warning in some configurations
                 Ok(())
             },
         )
         .map_err(lua_err)?;
-    table.set("register_directive", register).map_err(lua_err)?;
+    let register_link_resolver = lua
+        .create_function(
+            |lua, (namespace, func): (String, Function)| -> mlua::Result<()> {
+                let key = lua.create_registry_value(func)?;
+                PENDING_REGISTRATIONS.with(|cell| {
+                    cell.borrow_mut()
+                        .push(PendingRegistration::Link { namespace, key });
+                });
+                Ok(())
+            },
+        )
+        .map_err(lua_err)?;
+    table
+        .set("register_directive", register_directive)
+        .map_err(lua_err)?;
+    table
+        .set("register_link_resolver", register_link_resolver)
+        .map_err(lua_err)?;
     lua.globals().set("mdx", table).map_err(lua_err)?;
     Ok(())
 }
 
+enum PendingRegistration {
+    Directive { name: String, key: RegistryKey },
+    Link { namespace: String, key: RegistryKey },
+}
+
 thread_local! {
-    static PENDING_KEYS: std::cell::RefCell<Vec<(String, RegistryKey)>> =
+    static PENDING_REGISTRATIONS: std::cell::RefCell<Vec<PendingRegistration>> =
         const { std::cell::RefCell::new(Vec::new()) };
 }
 
@@ -141,25 +139,44 @@ impl DirectiveRuntime for LuaRuntime {
         let mut inner = self.lock();
         let id = ScriptId(inner.next_script_id);
         inner.next_script_id += 1;
-        PENDING_KEYS.with(|c| c.borrow_mut().clear());
+        PENDING_REGISTRATIONS.with(|c| c.borrow_mut().clear());
         let exec_result = inner.lua.load(&chunk).set_name(&name).exec();
         exec_result.map_err(|e| RuntimeError::Load(e.to_string()))?;
         // Drain the pending registrations.
-        let pending: Vec<(String, RegistryKey)> =
-            PENDING_KEYS.with(|c| std::mem::take(&mut *c.borrow_mut()));
-        let mut handler_names = Vec::new();
-        for (hname, key) in pending {
-            // If a handler of the same name is already registered, replace it.
-            if let Some(prev) = inner.handlers.remove(&hname) {
-                let _ = inner.lua.remove_registry_value(prev.key);
+        let pending: Vec<PendingRegistration> =
+            PENDING_REGISTRATIONS.with(|c| std::mem::take(&mut *c.borrow_mut()));
+        let mut directive_handler_names = Vec::new();
+        let mut link_handler_names = Vec::new();
+        for reg in pending {
+            match reg {
+                PendingRegistration::Directive { name, key } => {
+                    if let Some(prev) = inner.directive_handlers.remove(&name) {
+                        let _ = inner.lua.remove_registry_value(prev.key);
+                    }
+                    inner
+                        .directive_handlers
+                        .insert(name.clone(), HandlerEntry { key, script: id });
+                    directive_handler_names.push(name);
+                }
+                PendingRegistration::Link { namespace, key } => {
+                    if let Some(prev) = inner.link_handlers.remove(&namespace) {
+                        let _ = inner.lua.remove_registry_value(prev.key);
+                    }
+                    inner
+                        .link_handlers
+                        .insert(namespace.clone(), HandlerEntry { key, script: id });
+                    link_handler_names.push(namespace);
+                }
             }
-            inner
-                .handlers
-                .insert(hname.clone(), HandlerEntry { key, script: id });
-            handler_names.push(hname);
         }
         let _ = name;
-        inner.scripts.insert(id, ScriptRecord { handler_names });
+        inner.scripts.insert(
+            id,
+            ScriptRecord {
+                directive_handler_names,
+                link_handler_names,
+            },
+        );
         self.generation.fetch_add(1, Ordering::Relaxed);
         Ok(id)
     }
@@ -170,8 +187,15 @@ impl DirectiveRuntime for LuaRuntime {
             .scripts
             .remove(&id)
             .ok_or_else(|| RuntimeError::Load(format!("unknown script id {id:?}")))?;
-        for hname in rec.handler_names {
-            if let Some(entry) = inner.handlers.remove(&hname) {
+        for hname in rec.directive_handler_names {
+            if let Some(entry) = inner.directive_handlers.remove(&hname) {
+                if entry.script == id {
+                    let _ = inner.lua.remove_registry_value(entry.key);
+                }
+            }
+        }
+        for namespace in rec.link_handler_names {
+            if let Some(entry) = inner.link_handlers.remove(&namespace) {
                 if entry.script == id {
                     let _ = inner.lua.remove_registry_value(entry.key);
                 }
@@ -184,7 +208,7 @@ impl DirectiveRuntime for LuaRuntime {
     fn list_handlers(&self) -> Vec<HandlerDescriptor> {
         let inner = self.lock();
         inner
-            .handlers
+            .directive_handlers
             .iter()
             .map(|(name, entry)| HandlerDescriptor {
                 name: name.clone(),
@@ -202,7 +226,7 @@ impl DirectiveRuntime for LuaRuntime {
     ) -> Result<DirectiveOutput, RuntimeError> {
         let inner = self.lock();
         let entry = inner
-            .handlers
+            .directive_handlers
             .get(handler)
             .ok_or_else(|| RuntimeError::UnknownHandler(handler.to_string()))?;
         let func: Function = inner.lua.registry_value(&entry.key).map_err(|e| {
@@ -215,6 +239,30 @@ impl DirectiveRuntime for LuaRuntime {
         let result: LuaValue = func
             .call((inv_table, ctx_table))
             .map_err(|e| RuntimeError::Execution(format!("handler '{handler}': {e}")))?;
+        convert::lua_to_output(&inner.lua, result)
+    }
+
+    fn execute_link(
+        &self,
+        namespace: &str,
+        invocation: LinkInvocation,
+        ctx: &RuntimeContext,
+    ) -> Result<DirectiveOutput, RuntimeError> {
+        let inner = self.lock();
+        let entry = inner
+            .link_handlers
+            .get(namespace)
+            .ok_or_else(|| RuntimeError::UnknownLinkResolver(namespace.to_string()))?;
+        let func: Function = inner.lua.registry_value(&entry.key).map_err(|e| {
+            RuntimeError::Execution(format!(
+                "link resolver '{namespace}': failed to retrieve function: {e}"
+            ))
+        })?;
+        let link_table = convert::link_invocation_to_lua(&inner.lua, &invocation)?;
+        let ctx_table = build_context_table(&inner.lua, ctx)?;
+        let result: LuaValue = func
+            .call((link_table, ctx_table))
+            .map_err(|e| RuntimeError::Execution(format!("link resolver '{namespace}': {e}")))?;
         convert::lua_to_output(&inner.lua, result)
     }
 
@@ -232,6 +280,11 @@ fn build_context_table(lua: &Lua, ctx: &RuntimeContext) -> Result<Table, Runtime
             .to_value(meta)
             .map_err(|e| RuntimeError::Other(e.to_string()))?;
         t.set("document_metadata", v)
+            .map_err(|e| RuntimeError::Other(e.to_string()))?;
+        let v = lua
+            .to_value(meta)
+            .map_err(|e| RuntimeError::Other(e.to_string()))?;
+        t.set("frontmatter", v)
             .map_err(|e| RuntimeError::Other(e.to_string()))?;
     }
     let vars = lua

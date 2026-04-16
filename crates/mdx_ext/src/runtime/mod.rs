@@ -1,10 +1,12 @@
-//! Runtime abstraction for directive handlers.
+//! Runtime abstraction for directive and semantic-link handlers.
 //!
-//! The engine calls `DirectiveRuntime::execute` during the resolution pass.
-//! Implementations (e.g. `mdx_lua::LuaRuntime`) may be script-based or native
-//! Rust. The trait is `Send` but NOT `Sync` — `mlua::Lua` is single-threaded,
-//! so the engine serializes calls behind `&mut` for loading and holds `&`
-//! for execution (implementations use interior mutability as needed).
+//! The engine calls `DirectiveRuntime::execute` for directives and
+//! `DirectiveRuntime::execute_link` for namespaced semantic links during the
+//! resolution pass. Implementations (e.g. `mdx_lua::LuaRuntime`) may be
+//! script-based or native Rust. The trait is `Send` but NOT `Sync` —
+//! `mlua::Lua` is single-threaded, so the engine serializes calls behind
+//! `&mut` for loading and holds `&` for execution (implementations use
+//! interior mutability as needed).
 
 pub mod cache;
 pub mod resolver;
@@ -53,6 +55,16 @@ pub struct DirectiveInvocation {
     pub span: Span,
 }
 
+/// Input passed to a namespaced semantic-link resolver.
+#[derive(Debug, Clone)]
+pub struct LinkInvocation {
+    pub namespace: String,
+    pub target: String,
+    /// A simplified textual summary of the rendered link label.
+    pub text: String,
+    pub span: Span,
+}
+
 /// Structured output returned by a directive handler.
 #[derive(Debug, Clone)]
 pub enum DirectiveOutput {
@@ -89,6 +101,8 @@ pub enum RuntimeError {
     Load(String),
     #[error("unknown handler: {0}")]
     UnknownHandler(String),
+    #[error("unknown link resolver: {0}")]
+    UnknownLinkResolver(String),
     #[error("execution failed: {0}")]
     Execution(String),
     #[error("invalid return value: {0}")]
@@ -108,6 +122,14 @@ pub trait DirectiveRuntime: Send {
         invocation: DirectiveInvocation,
         ctx: &RuntimeContext,
     ) -> Result<DirectiveOutput, RuntimeError>;
+    fn execute_link(
+        &self,
+        namespace: &str,
+        _invocation: LinkInvocation,
+        _ctx: &RuntimeContext,
+    ) -> Result<DirectiveOutput, RuntimeError> {
+        Err(RuntimeError::UnknownLinkResolver(namespace.to_string()))
+    }
     /// Generation counter — increments on every successful load/unload so that
     /// `DirectiveCache` implementations can include it in `CacheKey` for invalidation.
     fn generation(&self) -> u64;

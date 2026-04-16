@@ -1,8 +1,9 @@
-//! Directive resolution pass.
+//! Directive and semantic-link resolution pass.
 //!
 //! Walks the document AST and invokes `DirectiveRuntime::execute` for each
-//! `Directive` / `InlineDirective` node. The handler's `DirectiveOutput`
-//! is then spliced back into the tree per the configured `ResolutionMode`:
+//! `Directive` / `InlineDirective` node plus `DirectiveRuntime::execute_link`
+//! for each namespaced link. The handler's `DirectiveOutput` is then spliced
+//! back into the tree per the configured `ResolutionMode`:
 //!
 //! * **Strict**: unknown handler or runtime failure is an error-severity
 //!   diagnostic; `engine::resolve` will refuse to render.
@@ -16,11 +17,12 @@
 //! with the same engine configuration, with a bounded recursion depth and a
 //! total directive budget enforced by `ReparseLimits`.
 
-use crate::ast::{DirectiveKind, Document, Node};
+use crate::ast::{DirectiveKind, Document, LinkKind, LinkNode, Node};
 use crate::config::{ReparseLimits, ResolutionMode};
 use crate::diagnostics::{codes, Diagnostic, Severity};
 use crate::runtime::{
-    DirectiveInvocation, DirectiveOutput, DirectiveRuntime, RuntimeContext, RuntimeError,
+    DirectiveInvocation, DirectiveOutput, DirectiveRuntime, LinkInvocation, RuntimeContext,
+    RuntimeError,
 };
 
 /// Resolve all directives in `doc` using `runtime`.
@@ -63,7 +65,8 @@ fn resolve_nodes(
         // First recurse into any children.
         recurse_into(&mut nodes[i], runtime, ctx, state, doc, depth);
 
-        // Then, if this node is itself a directive, attempt resolution.
+        // Then, if this node is itself a directive or namespaced link,
+        // attempt resolution.
         let replacement = match &nodes[i] {
             Node::Directive(d) => Some(invoke(
                 &d.name,
@@ -91,6 +94,21 @@ fn resolve_nodes(
                 doc,
                 depth,
             )),
+            Node::Link(link) => match &link.kind {
+                LinkKind::NamespacedLink { namespace, target } => Some(invoke_link(
+                    namespace,
+                    target,
+                    children_summary(&link.children),
+                    link.span,
+                    link.clone(),
+                    runtime,
+                    ctx,
+                    state,
+                    doc,
+                    depth,
+                )),
+                _ => None,
+            },
             _ => None,
         };
         match replacement {
@@ -191,7 +209,40 @@ fn invoke(
 
     match runtime.execute(name, invocation, ctx) {
         Ok(output) => Some(map_output(output, span, state, runtime, ctx, doc, depth)),
-        Err(e) => Some(handle_error(e, name, span, state.mode, doc)),
+        Err(e) => Some(handle_directive_error(e, name, span, state.mode, doc)),
+    }
+}
+
+#[allow(clippy::too_many_arguments)]
+fn invoke_link(
+    namespace: &str,
+    target: &str,
+    text: String,
+    span: crate::span::Span,
+    original_link: LinkNode,
+    runtime: &dyn DirectiveRuntime,
+    ctx: &RuntimeContext,
+    state: &mut State,
+    doc: &mut Document,
+    depth: usize,
+) -> Option<Vec<Node>> {
+    let invocation = LinkInvocation {
+        namespace: namespace.to_string(),
+        target: target.to_string(),
+        text,
+        span,
+    };
+
+    match runtime.execute_link(namespace, invocation, ctx) {
+        Ok(output) => Some(map_output(output, span, state, runtime, ctx, doc, depth)),
+        Err(e) => Some(handle_link_error(
+            e,
+            namespace,
+            span,
+            state.mode,
+            doc,
+            original_link,
+        )),
     }
 }
 
@@ -228,7 +279,7 @@ fn map_output(
                 span,
             }]
         }
-        DirectiveOutput::Error { message } => handle_error(
+        DirectiveOutput::Error { message } => handle_directive_error(
             RuntimeError::Execution(message.clone()),
             "<returned error>",
             span,
@@ -264,32 +315,14 @@ fn map_output(
     }
 }
 
-fn handle_error(
+fn handle_directive_error(
     err: RuntimeError,
     name: &str,
     span: crate::span::Span,
     mode: ResolutionMode,
     doc: &mut Document,
 ) -> Vec<Node> {
-    let (code, msg) = match &err {
-        RuntimeError::UnknownHandler(n) => (
-            codes::UNKNOWN_HANDLER,
-            format!("unknown directive handler: {n}"),
-        ),
-        RuntimeError::Execution(m) => (
-            codes::RUNTIME_EXECUTION_FAILURE,
-            format!("directive handler failed: {m}"),
-        ),
-        RuntimeError::InvalidReturn(m) => (
-            codes::INVALID_RUNTIME_RETURN,
-            format!("invalid return value: {m}"),
-        ),
-        RuntimeError::Load(m) => (
-            codes::RUNTIME_EXECUTION_FAILURE,
-            format!("script load failed: {m}"),
-        ),
-        RuntimeError::Other(m) => (codes::RUNTIME_EXECUTION_FAILURE, m.clone()),
-    };
+    let (code, msg) = directive_error_details(&err);
     let severity = match mode {
         ResolutionMode::Strict => Severity::Error,
         _ => Severity::Warning,
@@ -309,5 +342,81 @@ fn handle_error(
                 span,
             }]
         }
+    }
+}
+
+fn handle_link_error(
+    err: RuntimeError,
+    namespace: &str,
+    span: crate::span::Span,
+    mode: ResolutionMode,
+    doc: &mut Document,
+    original_link: LinkNode,
+) -> Vec<Node> {
+    let (code, msg) = link_error_details(&err);
+    let severity = match mode {
+        ResolutionMode::Strict => Severity::Error,
+        _ => Severity::Warning,
+    };
+    doc.diagnostics.push(
+        Diagnostic::new(severity, code, msg)
+            .with_span(span)
+            .with_source(namespace.to_string()),
+    );
+    match mode {
+        ResolutionMode::Strict => Vec::new(),
+        _ => vec![Node::Link(original_link)],
+    }
+}
+
+fn directive_error_details(err: &RuntimeError) -> (&'static str, String) {
+    match err {
+        RuntimeError::UnknownHandler(n) => (
+            codes::UNKNOWN_HANDLER,
+            format!("unknown directive handler: {n}"),
+        ),
+        RuntimeError::Execution(m) => (
+            codes::RUNTIME_EXECUTION_FAILURE,
+            format!("directive handler failed: {m}"),
+        ),
+        RuntimeError::InvalidReturn(m) => (
+            codes::INVALID_RUNTIME_RETURN,
+            format!("invalid return value: {m}"),
+        ),
+        RuntimeError::Load(m) => (
+            codes::RUNTIME_EXECUTION_FAILURE,
+            format!("script load failed: {m}"),
+        ),
+        RuntimeError::UnknownLinkResolver(namespace) => (
+            codes::UNKNOWN_HANDLER,
+            format!("unknown link resolver: {namespace}"),
+        ),
+        RuntimeError::Other(m) => (codes::RUNTIME_EXECUTION_FAILURE, m.clone()),
+    }
+}
+
+fn link_error_details(err: &RuntimeError) -> (&'static str, String) {
+    match err {
+        RuntimeError::UnknownLinkResolver(namespace) => (
+            codes::UNKNOWN_HANDLER,
+            format!("unknown link resolver: {namespace}"),
+        ),
+        RuntimeError::Execution(m) => (
+            codes::RUNTIME_EXECUTION_FAILURE,
+            format!("link resolver failed: {m}"),
+        ),
+        RuntimeError::InvalidReturn(m) => (
+            codes::INVALID_RUNTIME_RETURN,
+            format!("invalid link resolver return value: {m}"),
+        ),
+        RuntimeError::Load(m) => (
+            codes::RUNTIME_EXECUTION_FAILURE,
+            format!("script load failed: {m}"),
+        ),
+        RuntimeError::UnknownHandler(name) => (
+            codes::UNKNOWN_HANDLER,
+            format!("unknown directive handler: {name}"),
+        ),
+        RuntimeError::Other(m) => (codes::RUNTIME_EXECUTION_FAILURE, m.clone()),
     }
 }
