@@ -247,11 +247,15 @@ fn map_output(
                     )
                     .with_span(span),
                 );
-                return vec![Node::Text { value: source, span }];
+                return vec![Node::Text {
+                    value: source,
+                    span,
+                }];
             }
             let mut sub_doc = crate::parser::parse(&source);
             // Carry diagnostics from the sub-parse up to the parent document.
-            doc.diagnostics.extend(std::mem::take(&mut sub_doc.diagnostics));
+            doc.diagnostics
+                .extend(std::mem::take(&mut sub_doc.diagnostics));
             // Recursively resolve the sub-document at depth + 1.
             let mut sub_children = std::mem::take(&mut sub_doc.children);
             resolve_nodes(&mut sub_children, runtime, ctx, state, doc, depth + 1);
@@ -268,10 +272,22 @@ fn handle_error(
     doc: &mut Document,
 ) -> Vec<Node> {
     let (code, msg) = match &err {
-        RuntimeError::UnknownHandler(n) => (codes::UNKNOWN_HANDLER, format!("unknown directive handler: {n}")),
-        RuntimeError::Execution(m) => (codes::RUNTIME_EXECUTION_FAILURE, format!("directive handler failed: {m}")),
-        RuntimeError::InvalidReturn(m) => (codes::INVALID_RUNTIME_RETURN, format!("invalid return value: {m}")),
-        RuntimeError::Load(m) => (codes::RUNTIME_EXECUTION_FAILURE, format!("script load failed: {m}")),
+        RuntimeError::UnknownHandler(n) => (
+            codes::UNKNOWN_HANDLER,
+            format!("unknown directive handler: {n}"),
+        ),
+        RuntimeError::Execution(m) => (
+            codes::RUNTIME_EXECUTION_FAILURE,
+            format!("directive handler failed: {m}"),
+        ),
+        RuntimeError::InvalidReturn(m) => (
+            codes::INVALID_RUNTIME_RETURN,
+            format!("invalid return value: {m}"),
+        ),
+        RuntimeError::Load(m) => (
+            codes::RUNTIME_EXECUTION_FAILURE,
+            format!("script load failed: {m}"),
+        ),
         RuntimeError::Other(m) => (codes::RUNTIME_EXECUTION_FAILURE, m.clone()),
     };
     let severity = match mode {

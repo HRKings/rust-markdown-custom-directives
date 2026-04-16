@@ -5,8 +5,8 @@
 //! `BTreeMap`. Unresolved directives render as fallback text and components
 //! render as `<mdx-component data-name="…" data-prop-*="…">…</mdx-component>`.
 
-use crate::ast::{AttributeMap, DirectiveBody, LinkKind, Node};
 use crate::ast::Document;
+use crate::ast::{AttributeMap, DirectiveBody, LinkKind, Node};
 
 /// Render `doc` to an HTML string.
 pub fn render(doc: &Document) -> String {
@@ -24,7 +24,9 @@ fn render_block(node: &Node, out: &mut String) {
             render_inlines(children, out);
             out.push_str("</p>\n");
         }
-        Node::Heading { level, children, .. } => {
+        Node::Heading {
+            level, children, ..
+        } => {
             let lvl = (*level).clamp(1, 6);
             out.push_str(&format!("<h{lvl}>"));
             render_inlines(children, out);
@@ -37,7 +39,12 @@ fn render_block(node: &Node, out: &mut String) {
             }
             out.push_str("</blockquote>\n");
         }
-        Node::List { ordered, start, items, .. } => {
+        Node::List {
+            ordered,
+            start,
+            items,
+            ..
+        } => {
             if *ordered {
                 match start {
                     Some(s) if *s != 1 => out.push_str(&format!("<ol start=\"{s}\">\n")),
@@ -67,7 +74,9 @@ fn render_block(node: &Node, out: &mut String) {
             }
             out.push_str("</li>\n");
         }
-        Node::CodeBlock { language, value, .. } => {
+        Node::CodeBlock {
+            language, value, ..
+        } => {
             match language {
                 Some(lang) if !lang.is_empty() => {
                     out.push_str(&format!(
@@ -102,8 +111,16 @@ fn render_block(node: &Node, out: &mut String) {
                 render_block(c, out);
             }
         }
-        Node::Component { name, props, children, .. } => {
-            out.push_str(&format!("<mdx-component data-name=\"{}\"", escape_attr(name)));
+        Node::Component {
+            name,
+            props,
+            children,
+            ..
+        } => {
+            out.push_str(&format!(
+                "<mdx-component data-name=\"{}\"",
+                escape_attr(name)
+            ));
             render_component_props(props, out);
             out.push('>');
             for c in children {
@@ -172,7 +189,9 @@ fn render_inline(node: &Node, out: &mut String) {
             render_inlines(&link.children, out);
             out.push_str("</a>");
         }
-        Node::Image { url, alt, title, .. } => {
+        Node::Image {
+            url, alt, title, ..
+        } => {
             out.push_str(&format!(
                 "<img src=\"{}\" alt=\"{}\"",
                 escape_attr(url),
@@ -185,10 +204,21 @@ fn render_inline(node: &Node, out: &mut String) {
         }
         Node::Html { value, .. } => out.push_str(value),
         Node::InlineDirective(d) => {
-            out.push_str(&format!("<!-- unresolved inline directive {{{{{}}}}}-->", escape_text(&d.name)));
+            out.push_str(&format!(
+                "<!-- unresolved inline directive {{{{{}}}}}-->",
+                escape_text(&d.name)
+            ));
         }
-        Node::Component { name, props, children, .. } => {
-            out.push_str(&format!("<mdx-component data-name=\"{}\"", escape_attr(name)));
+        Node::Component {
+            name,
+            props,
+            children,
+            ..
+        } => {
+            out.push_str(&format!(
+                "<mdx-component data-name=\"{}\"",
+                escape_attr(name)
+            ));
             render_component_props(props, out);
             out.push('>');
             render_inlines(children, out);

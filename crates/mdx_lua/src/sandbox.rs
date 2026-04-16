@@ -6,7 +6,15 @@ use mlua::{Lua, Result as LuaResult};
 
 /// Names stripped from the global environment unconditionally.
 const STRIPPED_GLOBALS: &[&str] = &[
-    "io", "os", "package", "require", "dofile", "loadfile", "load", "loadstring", "debug",
+    "io",
+    "os",
+    "package",
+    "require",
+    "dofile",
+    "loadfile",
+    "load",
+    "loadstring",
+    "debug",
     "collectgarbage",
 ];
 

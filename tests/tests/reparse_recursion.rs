@@ -83,7 +83,10 @@ fn normal_reparse_multilevel() {
         .iter()
         .filter(|d| d.code.as_ref() == "MDX401" || d.code.as_ref() == "MDX402")
         .collect();
-    assert!(bad_diags.is_empty(), "unexpected limit diagnostics: {bad_diags:?}");
+    assert!(
+        bad_diags.is_empty(),
+        "unexpected limit diagnostics: {bad_diags:?}"
+    );
 }
 
 #[test]

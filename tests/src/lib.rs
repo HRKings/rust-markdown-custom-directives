@@ -40,8 +40,7 @@ pub fn fixture_path(name: &str) -> std::path::PathBuf {
 
 /// Read a fixture file to a string.
 pub fn read_fixture(name: &str) -> String {
-    std::fs::read_to_string(fixture_path(name))
-        .unwrap_or_else(|e| panic!("fixture {name}: {e}"))
+    std::fs::read_to_string(fixture_path(name)).unwrap_or_else(|e| panic!("fixture {name}: {e}"))
 }
 
 /// Read a Lua script to a string.

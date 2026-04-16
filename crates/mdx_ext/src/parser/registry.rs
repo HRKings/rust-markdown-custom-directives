@@ -129,7 +129,6 @@ pub fn peek_inline_placeholder(s: &str) -> Option<(InlineKind, usize, usize)> {
     if !after_digits.starts_with(INLINE_CLOSE) {
         return None;
     }
-    let total =
-        c0.len_utf8() + 3 /* MDX */ + 1 /* tag */ + id_end + INLINE_CLOSE.len_utf8();
+    let total = c0.len_utf8() + 3 /* MDX */ + 1 /* tag */ + id_end + INLINE_CLOSE.len_utf8();
     Some((kind, id, total))
 }

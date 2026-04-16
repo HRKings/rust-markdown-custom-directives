@@ -7,10 +7,7 @@ use mdx_integration_tests::engine_no_runtime;
 fn unterminated_block_directive() {
     let eng = engine_no_runtime(ResolutionMode::Passthrough);
     let doc = eng.parse(":::myblock\nsome body text\n");
-    let has_malformed = doc
-        .diagnostics
-        .iter()
-        .any(|d| d.code.as_ref() == "MDX101");
+    let has_malformed = doc.diagnostics.iter().any(|d| d.code.as_ref() == "MDX101");
     assert!(
         has_malformed,
         "expected MDX101 for unterminated block directive: {:?}",
@@ -34,7 +31,10 @@ fn empty_inline_directive() {
     // directive at all — it passes through as plain text with no diagnostic.
     // (split_ident("") returns None, short-circuiting before the name check.)
     let html = eng.render_html(&doc);
-    assert!(html.contains("{{}}"), "empty directive should appear as text: {html}");
+    assert!(
+        html.contains("{{}}"),
+        "empty directive should appear as text: {html}"
+    );
     // No directive node should be produced.
     let dbg = eng.render_debug(&doc);
     assert!(
@@ -47,17 +47,17 @@ fn empty_inline_directive() {
 fn empty_wiki_link() {
     let eng = engine_no_runtime(ResolutionMode::Passthrough);
     let doc = eng.parse("text [[]] more");
-    let has_malformed = doc
-        .diagnostics
-        .iter()
-        .any(|d| d.code.as_ref() == "MDX103");
+    let has_malformed = doc.diagnostics.iter().any(|d| d.code.as_ref() == "MDX103");
     assert!(
         has_malformed,
         "expected MDX103 for empty wiki link: {:?}",
         doc.diagnostics
     );
     let html = eng.render_html(&doc);
-    assert!(html.contains("[[]]"), "empty wiki link should appear as text: {html}");
+    assert!(
+        html.contains("[[]]"),
+        "empty wiki link should appear as text: {html}"
+    );
 }
 
 #[test]
@@ -66,9 +66,10 @@ fn directive_inside_fenced_code_block() {
     let src = mdx_integration_tests::read_fixture("directive_in_code_fence.md");
     let doc = eng.parse(&src);
     // No directive nodes should be produced — everything is inside a code fence.
-    let has_directive = doc.children.iter().any(|n| {
-        matches!(n, Node::Directive(_) | Node::InlineDirective(_))
-    });
+    let has_directive = doc
+        .children
+        .iter()
+        .any(|n| matches!(n, Node::Directive(_) | Node::InlineDirective(_)));
     assert!(
         !has_directive,
         "directives inside fenced code blocks must not be parsed"
@@ -88,5 +89,8 @@ fn nested_block_close_first() {
     let doc = eng.parse(":::outer\n:::inner\nbody\n:::\nafter\n:::\n");
     let dbg = eng.render_debug(&doc);
     // "outer" should be captured as a directive.
-    assert!(dbg.contains("outer"), "outer directive should be captured: {dbg}");
+    assert!(
+        dbg.contains("outer"),
+        "outer directive should be captured: {dbg}"
+    );
 }

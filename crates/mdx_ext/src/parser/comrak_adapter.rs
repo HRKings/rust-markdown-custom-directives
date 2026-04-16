@@ -85,18 +85,9 @@ fn compute_line_starts(src: &str) -> Vec<usize> {
 fn span_of(sp: Sourcepos, ctx: &Ctx) -> Span {
     let start_line_idx = sp.start.line.saturating_sub(1);
     let end_line_idx = sp.end.line.saturating_sub(1);
-    let start = ctx
-        .line_starts
-        .get(start_line_idx)
-        .copied()
-        .unwrap_or(0)
+    let start = ctx.line_starts.get(start_line_idx).copied().unwrap_or(0)
         + sp.start.column.saturating_sub(1);
-    let end = ctx
-        .line_starts
-        .get(end_line_idx)
-        .copied()
-        .unwrap_or(start)
-        + sp.end.column;
+    let end = ctx.line_starts.get(end_line_idx).copied().unwrap_or(start) + sp.end.column;
     Span::new(start, end.max(start))
 }
 
@@ -160,7 +151,11 @@ fn convert_block<'a>(node: &'a AstNode<'a>, ctx: &Ctx, doc: &mut Document) -> Op
         }),
         NodeValue::List(list) => {
             let ordered = matches!(list.list_type, ListType::Ordered);
-            let start = if ordered { Some(list.start as u64) } else { None };
+            let start = if ordered {
+                Some(list.start as u64)
+            } else {
+                None
+            };
             let items: Vec<Node> = node
                 .children()
                 .filter_map(|c| convert_block(c, ctx, doc))
@@ -360,10 +355,8 @@ fn split_text_for_placeholders(
                                     target: entry.target.clone(),
                                 },
                             };
-                            let display = entry
-                                .label
-                                .clone()
-                                .unwrap_or_else(|| entry.target.clone());
+                            let display =
+                                entry.label.clone().unwrap_or_else(|| entry.target.clone());
                             let children = vec![Node::Text {
                                 value: display,
                                 span: entry.span,

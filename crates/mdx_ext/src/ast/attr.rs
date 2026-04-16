@@ -39,6 +39,10 @@ impl AttributeMap {
 
 impl<K: Into<String>, V: Into<serde_json::Value>> FromIterator<(K, V)> for AttributeMap {
     fn from_iter<I: IntoIterator<Item = (K, V)>>(iter: I) -> Self {
-        AttributeMap(iter.into_iter().map(|(k, v)| (k.into(), v.into())).collect())
+        AttributeMap(
+            iter.into_iter()
+                .map(|(k, v)| (k.into(), v.into()))
+                .collect(),
+        )
     }
 }

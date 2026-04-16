@@ -53,7 +53,11 @@ fn data_output() {
         .diagnostics
         .iter()
         .any(|d| d.code.as_ref() == "MDX203");
-    assert!(has_info, "expected MDX203 info for data output: {:?}", resolved.diagnostics);
+    assert!(
+        has_info,
+        "expected MDX203 info for data output: {:?}",
+        resolved.diagnostics
+    );
     let html = eng.render_html(&resolved);
     // Serialized JSON should appear in the text.
     assert!(html.contains("42"), "data should be serialized: {html}");

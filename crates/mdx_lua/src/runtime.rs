@@ -19,8 +19,8 @@ use std::sync::Mutex;
 
 use mdx_ext::runtime::HandlerDescriptor;
 use mdx_ext::{
-    DirectiveInvocation, DirectiveOutput, DirectiveRuntime, RuntimeContext, RuntimeError,
-    ScriptId, ScriptSource,
+    DirectiveInvocation, DirectiveOutput, DirectiveRuntime, RuntimeContext, RuntimeError, ScriptId,
+    ScriptSource,
 };
 use mlua::{Function, Lua, LuaSerdeExt, RegistryKey, Table, Value as LuaValue};
 
@@ -97,11 +97,12 @@ fn install_mdx_table(lua: &Lua) -> Result<(), RuntimeError> {
                 // Publish the RegistryKey through a second registry slot, keyed by
                 // sequence number.
                 let keys_table_name = "__mdx_pending_keys";
-                let keys_table: Table = lua.named_registry_value(keys_table_name).or_else(|_| {
-                    let t = lua.create_table()?;
-                    lua.set_named_registry_value(keys_table_name, t.clone())?;
-                    Ok::<_, mlua::Error>(t)
-                })?;
+                let keys_table: Table =
+                    lua.named_registry_value(keys_table_name).or_else(|_| {
+                        let t = lua.create_table()?;
+                        lua.set_named_registry_value(keys_table_name, t.clone())?;
+                        Ok::<_, mlua::Error>(t)
+                    })?;
                 // Store the raw registry key index as a userdata-free integer by
                 // round-tripping through a boxed integer. `create_registry_value`
                 // gives us a RegistryKey that owns the slot; we need to hand it to
@@ -130,9 +131,8 @@ impl DirectiveRuntime for LuaRuntime {
     fn load_script(&mut self, source: ScriptSource) -> Result<ScriptId, RuntimeError> {
         let (name, chunk): (String, String) = match source {
             ScriptSource::File(path) => {
-                let content = fs::read_to_string(&path).map_err(|e| {
-                    RuntimeError::Load(format!("read {}: {e}", path.display()))
-                })?;
+                let content = fs::read_to_string(&path)
+                    .map_err(|e| RuntimeError::Load(format!("read {}: {e}", path.display())))?;
                 (path.display().to_string(), content)
             }
             ScriptSource::Text(t) => ("<inline>".to_string(), t),
@@ -205,14 +205,11 @@ impl DirectiveRuntime for LuaRuntime {
             .handlers
             .get(handler)
             .ok_or_else(|| RuntimeError::UnknownHandler(handler.to_string()))?;
-        let func: Function = inner
-            .lua
-            .registry_value(&entry.key)
-            .map_err(|e| {
-                RuntimeError::Execution(format!(
-                    "handler '{handler}': failed to retrieve function: {e}"
-                ))
-            })?;
+        let func: Function = inner.lua.registry_value(&entry.key).map_err(|e| {
+            RuntimeError::Execution(format!(
+                "handler '{handler}': failed to retrieve function: {e}"
+            ))
+        })?;
         let inv_table = convert::invocation_to_lua(&inner.lua, &invocation)?;
         let ctx_table = build_context_table(&inner.lua, ctx)?;
         let result: LuaValue = func
@@ -227,7 +224,9 @@ impl DirectiveRuntime for LuaRuntime {
 }
 
 fn build_context_table(lua: &Lua, ctx: &RuntimeContext) -> Result<Table, RuntimeError> {
-    let t = lua.create_table().map_err(|e| RuntimeError::Other(e.to_string()))?;
+    let t = lua
+        .create_table()
+        .map_err(|e| RuntimeError::Other(e.to_string()))?;
     if let Some(meta) = &ctx.document_metadata {
         let v = lua
             .to_value(meta)

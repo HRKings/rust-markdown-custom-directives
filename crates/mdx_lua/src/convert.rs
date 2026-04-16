@@ -40,9 +40,9 @@ pub fn invocation_to_lua(lua: &Lua, inv: &DirectiveInvocation) -> Result<Table, 
     let body_val: JsonValue = match &inv.body {
         mdx_ext::DirectiveBody::None => JsonValue::Null,
         mdx_ext::DirectiveBody::Raw(s) => JsonValue::String(s.clone()),
-        mdx_ext::DirectiveBody::Attributes(a) => JsonValue::Object(
-            a.iter().map(|(k, v)| (k.clone(), v.clone())).collect(),
-        ),
+        mdx_ext::DirectiveBody::Attributes(a) => {
+            JsonValue::Object(a.iter().map(|(k, v)| (k.clone(), v.clone())).collect())
+        }
     };
     t.set("body", json_to_lua(lua, &body_val)?)
         .map_err(lua_err)?;
@@ -71,7 +71,9 @@ pub fn invocation_to_lua(lua: &Lua, inv: &DirectiveInvocation) -> Result<Table, 
 pub fn lua_to_output(lua: &Lua, value: LuaValue) -> Result<DirectiveOutput, RuntimeError> {
     match value {
         LuaValue::Nil => Ok(DirectiveOutput::Text(String::new())),
-        LuaValue::String(s) => Ok(DirectiveOutput::Text(s.to_str().map_err(lua_err)?.to_string())),
+        LuaValue::String(s) => Ok(DirectiveOutput::Text(
+            s.to_str().map_err(lua_err)?.to_string(),
+        )),
         LuaValue::Table(t) => table_to_output(lua, t),
         other => Err(RuntimeError::InvalidReturn(format!(
             "unsupported handler return type: {}",

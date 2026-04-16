@@ -7,10 +7,7 @@ pub fn render(doc: &Document) -> String {
     let mut out = String::new();
     out.push_str("(document");
     if let Some(fm) = &doc.frontmatter {
-        out.push_str(&format!(
-            "\n  (frontmatter {} {:?})",
-            fm.value, fm.span
-        ));
+        out.push_str(&format!("\n  (frontmatter {} {:?})", fm.value, fm.span));
     }
     for child in &doc.children {
         out.push('\n');
@@ -44,7 +41,11 @@ fn render_node(node: &Node, level: usize, out: &mut String) {
             render_children(children, level, out);
             out.push(')');
         }
-        Node::Heading { level: h, children, span } => {
+        Node::Heading {
+            level: h,
+            children,
+            span,
+        } => {
             out.push_str(&format!("(heading {} {:?}", h, span));
             render_children(children, level, out);
             out.push(')');
@@ -65,11 +66,26 @@ fn render_node(node: &Node, level: usize, out: &mut String) {
         Node::Code { value, span } => {
             out.push_str(&format!("(code {:?} {:?})", value, span));
         }
-        Node::CodeBlock { language, value, span } => {
-            out.push_str(&format!("(code-block {:?} {:?} {:?})", language, value, span));
+        Node::CodeBlock {
+            language,
+            value,
+            span,
+        } => {
+            out.push_str(&format!(
+                "(code-block {:?} {:?} {:?})",
+                language, value, span
+            ));
         }
-        Node::List { ordered, start, items, span } => {
-            out.push_str(&format!("(list ordered={} start={:?} {:?}", ordered, start, span));
+        Node::List {
+            ordered,
+            start,
+            items,
+            span,
+        } => {
+            out.push_str(&format!(
+                "(list ordered={} start={:?} {:?}",
+                ordered, start, span
+            ));
             render_children(items, level, out);
             out.push(')');
         }
@@ -85,7 +101,9 @@ fn render_node(node: &Node, level: usize, out: &mut String) {
         }
         Node::Link(link) => {
             let tag = match &link.kind {
-                LinkKind::StandardUrl { url, title } => format!("link url={:?} title={:?}", url, title),
+                LinkKind::StandardUrl { url, title } => {
+                    format!("link url={:?} title={:?}", url, title)
+                }
                 LinkKind::WikiLink { target } => format!("wiki-link target={:?}", target),
                 LinkKind::NamespacedLink { namespace, target } => {
                     format!("ns-link {:?}:{:?}", namespace, target)
@@ -95,8 +113,16 @@ fn render_node(node: &Node, level: usize, out: &mut String) {
             render_children(&link.children, level, out);
             out.push(')');
         }
-        Node::Image { url, alt, title, span } => {
-            out.push_str(&format!("(image url={:?} alt={:?} title={:?} {:?})", url, alt, title, span));
+        Node::Image {
+            url,
+            alt,
+            title,
+            span,
+        } => {
+            out.push_str(&format!(
+                "(image url={:?} alt={:?} title={:?} {:?})",
+                url, alt, title, span
+            ));
         }
         Node::Directive(d) => {
             out.push_str(&format!(
@@ -124,7 +150,12 @@ fn render_node(node: &Node, level: usize, out: &mut String) {
         Node::ThematicBreak { span } => {
             out.push_str(&format!("(thematic-break {:?})", span));
         }
-        Node::Component { name, props, children, span } => {
+        Node::Component {
+            name,
+            props,
+            children,
+            span,
+        } => {
             out.push_str(&format!(
                 "(component name={:?} props={} {:?}",
                 name,

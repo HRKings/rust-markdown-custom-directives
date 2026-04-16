@@ -67,16 +67,11 @@ pub enum DirectiveOutput {
     /// Pre-built AST nodes inserted in place of the directive.
     Nodes(Vec<Node>),
     /// An opaque component reference, rendered as a deterministic placeholder.
-    Component {
-        name: String,
-        props: AttributeMap,
-    },
+    Component { name: String, props: AttributeMap },
     /// Arbitrary structured data, not directly rendered. Emits an `Info` diagnostic.
     Data(serde_json::Value),
     /// A non-panicking handler failure, honoured per `ResolutionMode`.
-    Error {
-        message: String,
-    },
+    Error { message: String },
 }
 
 /// Read-only host context exposed to directive handlers.

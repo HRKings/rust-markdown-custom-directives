@@ -169,11 +169,14 @@ fn parse_open_fence(line: &str) -> Option<OpenFence> {
     for (k, v) in crate::syntax::parse_inline_attrs(after.trim()) {
         attrs.insert(k, v);
     }
-    Some(OpenFence { name: name.to_string(), attributes: attrs })
+    Some(OpenFence {
+        name: name.to_string(),
+        attributes: attrs,
+    })
 }
 
 struct BlockClose {
-    body_end: usize,       // byte offset of the '\n' before the closing fence line (exclusive)
+    body_end: usize, // byte offset of the '\n' before the closing fence line (exclusive)
     fence_line_end: usize, // byte offset just after the closing fence line's newline
 }
 
@@ -334,8 +337,12 @@ fn try_wiki_link(
     let inner = &rest[..close];
     if inner.is_empty() {
         doc.diagnostics.push(
-            Diagnostic::new(Severity::Warning, codes::MALFORMED_WIKI_LINK, "empty wiki link")
-                .with_span(Span::new(line_abs_start + at, line_abs_start + at + 4)),
+            Diagnostic::new(
+                Severity::Warning,
+                codes::MALFORMED_WIKI_LINK,
+                "empty wiki link",
+            )
+            .with_span(Span::new(line_abs_start + at, line_abs_start + at + 4)),
         );
         return None;
     }

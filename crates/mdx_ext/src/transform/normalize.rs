@@ -66,7 +66,11 @@ fn coalesce_text(children: &mut Vec<Node>) {
     let mut out: Vec<Node> = Vec::with_capacity(children.len());
     for node in children.drain(..) {
         if let Node::Text { value: v, span: s } = &node {
-            if let Some(Node::Text { value: prev, span: prev_span }) = out.last_mut() {
+            if let Some(Node::Text {
+                value: prev,
+                span: prev_span,
+            }) = out.last_mut()
+            {
                 prev.push_str(v);
                 prev_span.end = s.end;
                 continue;

@@ -92,7 +92,10 @@ impl MarkdownEngine {
 
     // ---- script management (delegated to the runtime) --------------------
 
-    pub fn load_script(&mut self, source: ScriptSource) -> std::result::Result<ScriptId, RuntimeError> {
+    pub fn load_script(
+        &mut self,
+        source: ScriptSource,
+    ) -> std::result::Result<ScriptId, RuntimeError> {
         self.runtime.load_script(source)
     }
 
@@ -132,12 +135,11 @@ impl MarkdownEngine {
         let mut tctx = crate::extension::TransformContext;
         for ext in &self.extensions {
             if let Err(e) = ext.transform_ast(&mut doc, &mut tctx) {
-                doc.diagnostics.push(
-                    crate::diagnostics::Diagnostic::warning(
+                doc.diagnostics
+                    .push(crate::diagnostics::Diagnostic::warning(
                         crate::diagnostics::codes::EXTENSION_FAILURE,
                         format!("extension {} transform failed: {}", ext.name(), e),
-                    ),
-                );
+                    ));
             }
         }
         doc
@@ -169,12 +171,11 @@ impl MarkdownEngine {
         let mut vctx = crate::extension::ValidationContext;
         for ext in &self.extensions {
             if let Err(e) = ext.validate(&doc, &mut vctx) {
-                doc.diagnostics.push(
-                    crate::diagnostics::Diagnostic::warning(
+                doc.diagnostics
+                    .push(crate::diagnostics::Diagnostic::warning(
                         crate::diagnostics::codes::EXTENSION_FAILURE,
                         format!("extension {} validation failed: {}", ext.name(), e),
-                    ),
-                );
+                    ));
             }
         }
         let errs = doc
