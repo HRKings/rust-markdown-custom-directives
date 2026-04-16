@@ -5,9 +5,9 @@ and inline directives, wiki links, and runtime-loaded Lua directive handlers.
 
 ## Crates
 
-- `mdx_core` — parser, AST, transforms, renderers, runtime traits
+- `mdx_ext` — parser, AST, transforms, renderers, runtime traits
 - `mdx_lua`  — optional Lua runtime (via `mlua`) implementing `DirectiveRuntime`
 
 ## Status
 
-Pre-1.0. See `crates/mdx_core/src/lib.rs` for the public API surface.
+Pre-1.0. See `crates/mdx_ext/src/lib.rs` for the public API surface.
